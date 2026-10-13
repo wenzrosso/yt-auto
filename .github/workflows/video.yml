@@ -1,0 +1,77 @@
+name: Video üret ve YouTube'a yükle
+
+on:
+  schedule:
+    - cron: "0 */3 * * *" # her 3 saatte bir (UTC); Türkiye saatiyle 03:00, 06:00, 09:00 ...
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "Video türü"
+        type: choice
+        default: auto
+        options: [auto, short, long]
+      no_upload:
+        description: "Yükleme, sadece üret (test)"
+        type: boolean
+        default: false
+
+# Aynı anda iki çalışma olmasın (geçmiş dosyası çakışmasın)
+concurrency:
+  group: yt-auto
+  cancel-in-progress: false
+
+permissions:
+  contents: write # state/history.json dosyasını depoya geri yazmak için
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Sistem paketleri (ffmpeg, yazı tipi)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+
+      - name: Python paketleri
+        run: pip install -r requirements.txt
+
+      - name: Video üret ve yükle
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # İsteğe bağlı ayarlar: Settings > Secrets and variables > Actions > Variables
+          PRIVACY_STATUS: ${{ vars.PRIVACY_STATUS || 'private' }}
+          MAX_UPLOADS_PER_DAY: ${{ vars.MAX_UPLOADS_PER_DAY || '6' }}
+          LONG_SLOTS: ${{ vars.LONG_SLOTS || '2,6' }}
+          CHANNEL_THEME: ${{ vars.CHANNEL_THEME || 'motivasyon ve ilham veren kısa hikâyeler' }}
+          TTS_VOICE: ${{ vars.TTS_VOICE || 'tr-TR-AhmetNeural' }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gemini' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash' }}
+          CONTAINS_SYNTHETIC_MEDIA: ${{ vars.CONTAINS_SYNTHETIC_MEDIA || 'false' }}
+        run: |
+          KIND="${{ github.event.inputs.kind || 'auto' }}"
+          if [ "${{ github.event.inputs.no_upload }}" = "true" ]; then
+            python main.py --kind "$KIND" --no-upload
+          else
+            python main.py --kind "$KIND"
+          fi
+
+      - name: Geçmişi depoya kaydet
+        if: always()
+        run: |
+          git config user.name "yt-auto-bot"
+          git config user.email "yt-auto-bot@users.noreply.github.com"
+          git add state/history.json
+          git diff --cached --quiet || (git commit -m "Geçmiş güncellendi" && git push)
