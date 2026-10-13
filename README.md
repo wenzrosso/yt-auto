@@ -4,7 +4,7 @@ Her 3 saatte bir kendiliğinden çalışır: yapay zeka senaryo yazar, doğal T�
 
 - **Shorts** (dikey, ~50 sn) ve **normal video** (yatay, ~6-8 dk) birlikte üretilir. Varsayılan düzen: günde 8 çalıştırmadan 2'si normal video (Türkiye saatiyle 09:00 ve 21:00), 6'sı Shorts.
 - Konu: motivasyon ve kısa hikâyeler. Konuyu değiştirmek için `CHANNEL_THEME` ayarı yeterli.
-- Maliyet: Gemini ücretsiz kotası, edge-tts, Pexels ve GitHub Actions ile 0 TL.
+- Maliyet: Gemini ücretsiz kotası, edge-tts, Pixabay (veya Pexels) ve GitHub Actions ile 0 TL.
 
 ## Başlamadan önce bilmeniz gerekenler
 
@@ -19,7 +19,7 @@ Her 3 saatte bir kendiliğinden çalışır: yapay zeka senaryo yazar, doğal T�
 
 - **GitHub hesabı:** github.com
 - **Gemini API anahtarı:** aistudio.google.com/apikey adresinden "Create API key". Senaryoyu bu yazar.
-- **Pexels API anahtarı:** pexels.com/api adresinden ücretsiz hesap açıp anahtar alın. Stok videolar buradan gelir.
+- **Pixabay API anahtarı:** pixabay.com'da ücretsiz hesap açın. Giriş yaptıktan sonra pixabay.com/api/docs/ sayfasında anahtarınız görünür. Stok videolar buradan gelir. Alternatif olarak pexels.com/api adresinden Pexels anahtarı da kullanılabilir; ikisinden en az biri yeterlidir (Pexels bu projenin yazıldığı sırada yeni anahtar vermeyi geçici olarak durdurmuştu).
 - Videoların yükleneceği **YouTube kanalı** (kanalı olan Google hesabı).
 
 ### 2) GitHub deposu
@@ -53,7 +53,7 @@ Depoda **Settings > Secrets and variables > Actions > New repository secret** il
 | Secret | Değer |
 |---|---|
 | `GEMINI_API_KEY` | Gemini anahtarı |
-| `PEXELS_API_KEY` | Pexels anahtarı |
+| `PIXABAY_API_KEY` | Pixabay anahtarı (Pexels anahtarınız varsa ayrıca `PEXELS_API_KEY` de eklenebilir) |
 | `YT_CLIENT_ID` | auth_setup.py çıktısı |
 | `YT_CLIENT_SECRET` | auth_setup.py çıktısı |
 | `YT_REFRESH_TOKEN` | auth_setup.py çıktısı |
@@ -90,7 +90,7 @@ YouTube API Services için "Audit and Quota Extension Form" başvurusu yapmanız
 
 ## Sorun giderme
 
-- **Çalışma kırmızı bitti:** Actions > ilgili çalışma > günlükte hata satırına bakın. En sık nedenler: yanlış/eksik secret, Gemini modelinin kaldırılması (`GEMINI_MODEL`), Pexels kotası.
+- **Çalışma kırmızı bitti:** Actions > ilgili çalışma > günlükte hata satırına bakın. En sık nedenler: yanlış/eksik secret, Gemini modelinin kaldırılması (`GEMINI_MODEL`), stok video servisinin kotası.
 - **"Bugün ... video yüklendi; sınır ..." mesajı:** Günlük sınırın dolduğu anlamına gelir, hata değildir. Sayım, YouTube kotasının sıfırlandığı Pasifik saatine göre yapılır.
 - **Bir hafta sonra durdu / `invalid_grant`:** Adım 3.4'teki "In production" yapılmamıştır. Yapıp `auth_setup.py` ile yeni bir yenileme anahtarı alın.
 - **Zamanlanmış çalışmalar durdu:** GitHub, 60 gün boyunca etkinlik olmayan herkese açık depolarda zamanlanmış çalışmaları kapatabilir. Actions sekmesinden yeniden etkinleştirin.
@@ -104,4 +104,4 @@ python main.py --dry-run     # internetsiz deneme videosu üretir (output/ klas�
 python main.py --no-upload   # gerçek içerik üretir ama yüklemez
 ```
 
-Gerekenler: Python, ffmpeg ve `pip install -r requirements.txt`. `--no-upload` için ayrıca `GEMINI_API_KEY` ve `PEXELS_API_KEY` ortam değişkenleri tanımlı olmalı.
+Gerekenler: Python, ffmpeg ve `pip install -r requirements.txt`. `--no-upload` için ayrıca `GEMINI_API_KEY` ile `PIXABAY_API_KEY` (veya `PEXELS_API_KEY`) ortam değişkenleri tanımlı olmalı.

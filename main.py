@@ -28,7 +28,7 @@ SAMPLE_SCRIPT = {
     ],
 }
 
-FOOTER = "Bu videonun seslendirmesi yapay zekâ ile oluşturulmuştur. Görüntüler Pexels kaynaklıdır."
+FOOTER = "Bu videonun seslendirmesi yapay zekâ ile oluşturulmuştur."
 
 
 def choose_kind(arg: str) -> str:
@@ -38,8 +38,11 @@ def choose_kind(arg: str) -> str:
     return "long" if slot in config.LONG_SLOTS else "short"
 
 
-def build_description(script: dict, kind: str) -> str:
-    parts = [script["description"], FOOTER]
+def build_description(script: dict, kind: str, sources: set) -> str:
+    footer = FOOTER
+    if sources:
+        footer += f" Görüntüler {' ve '.join(sorted(sources))} kaynaklıdır."
+    parts = [script["description"], footer]
     hashtags = ["#" + t.replace(" ", "") for t in script["tags"][:3]]
     if kind == "short":
         hashtags.insert(0, "#Shorts")
@@ -69,8 +72,12 @@ def main() -> int:
     if args.dry_run:
         script = SAMPLE_SCRIPT
     else:
-        from ytauto import scriptgen  # ağ kütüphanelerini yalnızca gerektiğinde yükle
+        from ytauto import scriptgen, visuals  # ağ kütüphanelerini yalnızca gerektiğinde yükle
 
+        if not visuals.has_any_key():
+            raise SystemExit(
+                "PEXELS_API_KEY veya PIXABAY_API_KEY tanımlı olmalı. Anahtar yoksa videolar düz renkli arka planla çıkar."
+            )
         script = scriptgen.generate(kind, history.recent_titles(items))
     print(f"[başlık] {script['title']}")
 
@@ -83,8 +90,6 @@ def main() -> int:
                 tts.synth_fake(sc["narration"], audio)
                 clip = None
             else:
-                from ytauto import visuals
-
                 tts.synth(sc["narration"], audio)
                 clip = visuals.fetch_clip(sc["keywords"], fmt, work, used, i)
             scenes.append({"audio": audio, "video": clip, "narration": sc["narration"]})
@@ -107,7 +112,7 @@ def main() -> int:
 
         try:
             video_id = uploader.upload(
-                final, title, build_description(script, kind), script["tags"], config.PRIVACY_STATUS
+                final, title, build_description(script, kind, visuals.SOURCES_USED), script["tags"], config.PRIVACY_STATUS
             )
         except uploader.QuotaExceeded as e:
             print(f"[kota] {e}")
