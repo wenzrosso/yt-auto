@@ -3,14 +3,21 @@ import json
 import os
 import re
 import time
+from typing import Optional
 
 import requests
 
 from . import config
 
+# Ayarlanan model kullanılamazsa (404) sırayla bunlar denenir. Google eski modelleri yeni hesaplara kapatabilir.
+GEMINI_FALLBACKS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
+_working_model: Optional[str] = None  # bu çalışmada işe yarayan model, tekrar 404 yememek için
+
 
 class LLMError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status
 
 
 def _post(url: str, headers: dict, payload: dict, tries: int = 4) -> dict:
@@ -27,34 +34,81 @@ def _post(url: str, headers: dict, payload: dict, tries: int = 4) -> dict:
             time.sleep(8 * (i + 1) ** 2)
             continue
         if r.status_code >= 400:
-            raise LLMError(f"HTTP {r.status_code}: {r.text[:400]}")
+            raise LLMError(f"HTTP {r.status_code}: {r.text[:400]}", status=r.status_code)
         return r.json()
     raise LLMError(f"İstek {tries} denemede başarısız oldu: {last}")
 
 
-def _gemini(system: str, prompt: str, max_tokens: int) -> str:
-    key = os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise LLMError("GEMINI_API_KEY tanımlı değil.")
-    model = config.GEMINI_MODEL
+def _thinking_cfg(model: str) -> Optional[dict]:
+    """Düşünme jetonları çıktı sınırından yer yer; JSON kesilmesin diye düşünmeyi en aza indiririz."""
+    if "2.5" in model and "flash" in model:
+        return {"thinkingBudget": 0}
+    if model.startswith("gemini-3"):
+        return {"thinkingLevel": "low"}
+    return None
+
+
+def _gemini_call(key: str, model: str, system: str, prompt: str, max_tokens: int) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     gen_cfg = {
         "temperature": 1.0,
         "maxOutputTokens": max_tokens,
         "responseMimeType": "application/json",
     }
-    if "2.5" in model and "flash" in model:
-        gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}  # düşünme jetonları çıktıyı kesmesin
+    thinking = _thinking_cfg(model)
+    if thinking:
+        gen_cfg["thinkingConfig"] = thinking
     payload = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": gen_cfg,
     }
-    data = _post(url, {"x-goog-api-key": key}, payload)
+    headers = {"x-goog-api-key": key}
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        data = _post(url, headers, payload)
+    except LLMError as e:
+        # Düşünme ayarı bu modelde kabul edilmediyse ayarsız bir kez daha dene
+        if e.status == 400 and thinking and "think" in str(e).lower():
+            print(f"[llm] {model} düşünme ayarını kabul etmedi, ayarsız deneniyor")
+            gen_cfg.pop("thinkingConfig", None)
+            data = _post(url, headers, payload)
+        else:
+            raise
+    try:
+        cand = data["candidates"][0]
+        parts = cand["content"]["parts"]
     except (KeyError, IndexError, TypeError):
         raise LLMError(f"Beklenmeyen Gemini yanıtı: {str(data)[:300]}")
+    text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+    if not text.strip():
+        raise LLMError(f"Gemini boş yanıt döndürdü (bitiş nedeni: {cand.get('finishReason')})")
+    return text
+
+
+def _gemini(system: str, prompt: str, max_tokens: int) -> str:
+    global _working_model
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise LLMError("GEMINI_API_KEY tanımlı değil.")
+    candidates = []
+    for m in [_working_model, config.GEMINI_MODEL] + GEMINI_FALLBACKS:
+        if m and m not in candidates:
+            candidates.append(m)
+    last: Optional[LLMError] = None
+    for model in candidates:
+        try:
+            text = _gemini_call(key, model, system, prompt, max_tokens)
+        except LLMError as e:
+            if e.status == 404:
+                print(f"[llm] {model} kullanılamıyor (404), sıradaki model deneniyor")
+                last = e
+                continue
+            raise
+        if model != config.GEMINI_MODEL and model != _working_model:
+            print(f"[llm] '{model}' modeli kullanılıyor. Kalıcı yapmak için GEMINI_MODEL değişkenini bu değere ayarlayın.")
+        _working_model = model
+        return text
+    raise last or LLMError("Hiçbir Gemini modeli kullanılamadı.")
 
 
 def _anthropic(system: str, prompt: str, max_tokens: int) -> str:
@@ -87,7 +141,7 @@ def parse_json(text: str) -> dict:
         raise LLMError(f"JSON çözümlenemedi: {e}")
 
 
-def generate_json(system: str, prompt: str, max_tokens: int = 8192) -> dict:
+def generate_json(system: str, prompt: str, max_tokens: int = 16384) -> dict:
     if config.LLM_PROVIDER == "anthropic":
         raw = _anthropic(system, prompt, max_tokens)
     else:
