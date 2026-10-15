@@ -20,23 +20,30 @@ class LLMError(RuntimeError):
         self.status = status
 
 
-def _post(url: str, headers: dict, payload: dict, tries: int = 4) -> dict:
-    last = "bilinmeyen hata"
+RETRY_CODES = (429, 500, 502, 503, 504)
+# Bu hatalarda aynı modelden vazgeçip sıradaki modele geçilir (404: model yok, 599: bağlantı/zaman aşımı)
+FAILOVER_CODES = {404, 429, 500, 502, 503, 504, 599}
+
+
+def _post(url: str, headers: dict, payload: dict, tries: int = 3, timeout: int = 75) -> dict:
+    last, last_status = "bilinmeyen hata", None
     for i in range(tries):
         try:
-            r = requests.post(url, headers=headers, json=payload, timeout=180)
+            r = requests.post(url, headers=headers, json=payload, timeout=timeout)
         except requests.RequestException as e:
-            last = str(e)
+            last, last_status = f"{type(e).__name__}: {str(e)[:150]}", 599
+            print(f"[llm] bağlantı sorunu ({type(e).__name__}), deneme {i + 1}/{tries}")
+        else:
+            if r.status_code in RETRY_CODES:
+                last, last_status = f"HTTP {r.status_code}: {r.text[:150]}", r.status_code
+                print(f"[llm] sunucu meşgul veya sınırda (HTTP {r.status_code}), deneme {i + 1}/{tries}")
+            elif r.status_code >= 400:
+                raise LLMError(f"HTTP {r.status_code}: {r.text[:400]}", status=r.status_code)
+            else:
+                return r.json()
+        if i < tries - 1:
             time.sleep(5 * (i + 1))
-            continue
-        if r.status_code in (429, 500, 502, 503, 504):
-            last = f"HTTP {r.status_code}: {r.text[:200]}"
-            time.sleep(8 * (i + 1) ** 2)
-            continue
-        if r.status_code >= 400:
-            raise LLMError(f"HTTP {r.status_code}: {r.text[:400]}", status=r.status_code)
-        return r.json()
-    raise LLMError(f"İstek {tries} denemede başarısız oldu: {last}")
+    raise LLMError(f"İstek {tries} denemede başarısız oldu: {last}", status=last_status)
 
 
 def _thinking_cfg(model: str) -> Optional[dict]:
@@ -95,12 +102,16 @@ def _gemini(system: str, prompt: str, max_tokens: int) -> str:
         if m and m not in candidates:
             candidates.append(m)
     last: Optional[LLMError] = None
+    deadline = time.monotonic() + 420  # toplam en fazla ~7 dakika bekle
     for model in candidates:
+        if last is not None and time.monotonic() > deadline:
+            print("[llm] süre doldu, daha fazla model denenmiyor")
+            break
         try:
             text = _gemini_call(key, model, system, prompt, max_tokens)
         except LLMError as e:
-            if e.status == 404:
-                print(f"[llm] {model} kullanılamıyor (404), sıradaki model deneniyor")
+            if e.status in FAILOVER_CODES:
+                print(f"[llm] {model} kullanılamadı (HTTP {e.status}), sıradaki model deneniyor")
                 last = e
                 continue
             raise
