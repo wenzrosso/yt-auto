@@ -75,11 +75,23 @@ def _prompt(kind: str, angle: str, recent: list) -> str:
 
 def _validate(data: dict, kind: str) -> dict:
     fmt = config.FORMATS[kind]
+    if not isinstance(data, dict):
+        raise ValueError("yanıt beklenen biçimde değil")
     title = str(data.get("title", "")).strip().strip('"')
     if not title:
         raise ValueError("başlık yok")
+    raw_scenes = data.get("scenes")
+    if not isinstance(raw_scenes, list):
+        raise ValueError("sahne listesi beklenen biçimde değil")
     scenes = []
-    for s in data.get("scenes") or []:
+    for s in raw_scenes:
+        # Model bazen şemaya uymaz: sahne düz metin ya da [metin, anahtar kelime] listesi olarak gelebilir
+        if isinstance(s, (list, tuple)):
+            s = {"narration": s[0] if len(s) > 0 else "", "keywords": s[1] if len(s) > 1 else ""}
+        elif isinstance(s, str):
+            s = {"narration": s}
+        elif not isinstance(s, dict):
+            continue
         narration = str(s.get("narration", "")).strip()
         keywords = str(s.get("keywords", "")).strip()
         if narration:
@@ -94,7 +106,12 @@ def _validate(data: dict, kind: str) -> dict:
     if not (s_lo - 2 <= len(scenes) <= s_hi + 4):
         raise ValueError(f"sahne sayısı uygunsuz: {len(scenes)}")
 
-    tags = [str(t).strip().lstrip("#") for t in (data.get("tags") or []) if str(t).strip()]
+    raw_tags = data.get("tags") or []
+    if isinstance(raw_tags, str):
+        raw_tags = raw_tags.split(",")
+    if not isinstance(raw_tags, list):
+        raw_tags = []
+    tags = [str(t).strip().lstrip("#") for t in raw_tags if str(t).strip()]
     return {
         "title": title[:90],
         "description": str(data.get("description", "")).strip(),
@@ -111,7 +128,7 @@ def generate(kind: str, recent_titles: list, attempts: int = 3) -> dict:
         try:
             data = llm.generate_json(SYSTEM, _prompt(kind, angle, recent_titles))
             return _validate(data, kind)
-        except (llm.LLMError, ValueError) as e:
+        except (llm.LLMError, ValueError, AttributeError, TypeError, KeyError, IndexError) as e:
             last_error = e
             print(f"[senaryo] deneme {i + 1} başarısız: {e}")
     raise RuntimeError(f"Senaryo üretilemedi: {last_error}")
