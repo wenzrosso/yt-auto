@@ -15,15 +15,20 @@ def env(name: str, default: str = "") -> str:
 
 # --- İçerik ---
 # Not: Linux'ta LANGUAGE adlı bir sistem değişkeni zaten var, o yüzden CONTENT_LANG kullanıyoruz.
-CONTENT_LANG = env("CONTENT_LANG", "tr")
-TTS_VOICE = env("TTS_VOICE", "tr-TR-AhmetNeural")  # kadın sesi için: tr-TR-EmelNeural
+CONTENT_LANG = env("CONTENT_LANG", "en")  # en = İngilizce, tr = Türkçe
+_DEFAULT_VOICE = {"en": "en-US-GuyNeural", "tr": "tr-TR-AhmetNeural"}  # kadın sesleri: en-US-AriaNeural, tr-TR-EmelNeural
+_DEFAULT_THEME = {
+    "en": "motivational and inspiring short stories",
+    "tr": "motivasyon ve ilham veren kısa hikâyeler",
+}
+TTS_VOICE = env("TTS_VOICE", _DEFAULT_VOICE.get(CONTENT_LANG, _DEFAULT_VOICE["en"]))
 TTS_RATE = env("TTS_RATE", "+0%")
-THEME = env("CHANNEL_THEME", "motivasyon ve ilham veren kısa hikâyeler")
+THEME = env("CHANNEL_THEME", _DEFAULT_THEME.get(CONTENT_LANG, _DEFAULT_THEME["en"]))
 FONT_NAME = env("FONT_NAME", "DejaVu Sans")
 
 # --- Yapay zeka (senaryo yazımı) ---
 LLM_PROVIDER = env("LLM_PROVIDER", "gemini").lower()  # gemini (ücretsiz kota) | anthropic (ücretli)
-GEMINI_MODEL = env("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.8-flash")
 ANTHROPIC_MODEL = env("ANTHROPIC_MODEL", "claude-haiku-5-5")
 
 # --- YouTube ---
@@ -60,3 +65,7 @@ FORMATS = {
         "margin_h": 160,
     },
 }
+
+if CONTENT_LANG.lower().startswith("en"):
+    FORMATS["short"]["words"] = (100, 140)  # yaklaşık 40-55 sn
+    FORMATS["long"]["words"] = (900, 1250)  # yaklaşık 6-8 dk
