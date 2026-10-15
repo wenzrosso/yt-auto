@@ -26,7 +26,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -56,10 +56,11 @@ jobs:
           PRIVACY_STATUS: ${{ vars.PRIVACY_STATUS || 'private' }}
           MAX_UPLOADS_PER_DAY: ${{ vars.MAX_UPLOADS_PER_DAY || '6' }}
           LONG_SLOTS: ${{ vars.LONG_SLOTS || '2,6' }}
-          CHANNEL_THEME: ${{ vars.CHANNEL_THEME || 'motivasyon ve ilham veren kısa hikâyeler' }}
-          TTS_VOICE: ${{ vars.TTS_VOICE || 'tr-TR-AhmetNeural' }}
+          CONTENT_LANG: ${{ vars.CONTENT_LANG }}
+          CHANNEL_THEME: ${{ vars.CHANNEL_THEME }}
+          TTS_VOICE: ${{ vars.TTS_VOICE }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gemini' }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           CONTAINS_SYNTHETIC_MEDIA: ${{ vars.CONTAINS_SYNTHETIC_MEDIA || 'false' }}
         run: |
           KIND="${{ github.event.inputs.kind || 'auto' }}"
