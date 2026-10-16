@@ -24,7 +24,12 @@ _DEFAULT_THEME = {
 TTS_VOICE = env("TTS_VOICE", _DEFAULT_VOICE.get(CONTENT_LANG, _DEFAULT_VOICE["en"]))
 TTS_RATE = env("TTS_RATE", "+0%")
 THEME = env("CHANNEL_THEME", _DEFAULT_THEME.get(CONTENT_LANG, _DEFAULT_THEME["en"]))
-FONT_NAME = env("FONT_NAME", "DejaVu Sans")
+FONT_NAME = env("FONT_NAME", "Poppins")  # kurulu değilse otomatik olarak DejaVu Sans'a düşer
+# Shorts görünümü: cinematic = koyu, sinematik "disiplin/motivasyon" tarzı | classic = eski sade görünüm
+SHORT_STYLE = env("SHORT_STYLE", "cinematic").lower()
+# Filigran ve son karedeki kanal adı. Boş bırakılırsa gösterilmez.
+CHANNEL_NAME = env("CHANNEL_NAME", "")
+MUSIC_VOLUME = float(env("MUSIC_VOLUME", "0.14"))  # assets/music klasöründe müzik varsa ses seviyesi
 
 # --- Yapay zeka (senaryo yazımı) ---
 LLM_PROVIDER = env("LLM_PROVIDER", "gemini").lower()  # gemini (ücretsiz kota) | anthropic (ücretli)
@@ -66,6 +71,17 @@ FORMATS = {
     },
 }
 
-if CONTENT_LANG.lower().startswith("en"):
+FORMATS["short"]["style"] = SHORT_STYLE if SHORT_STYLE in ("cinematic", "classic") else "cinematic"
+FORMATS["long"]["style"] = "classic"
+
+_EN = CONTENT_LANG.lower().startswith("en")
+if FORMATS["short"]["style"] == "cinematic":
+    # Kısa, vurucu, yaklaşık 20-30 saniyelik videolar; her sahne tek bir satır
+    FORMATS["short"]["scenes"] = (7, 10)
+    FORMATS["short"]["words"] = (50, 80) if _EN else (40, 65)
+    FORMATS["short"]["sub_words"] = 10
+    FORMATS["short"]["font_size"] = 84
+elif _EN:
     FORMATS["short"]["words"] = (100, 140)  # yaklaşık 40-55 sn
+if _EN:
     FORMATS["long"]["words"] = (900, 1250)  # yaklaşık 6-8 dk
