@@ -147,8 +147,88 @@ def _prompt_en(kind: str, angle: str, recent: list) -> str:
     )
 
 
+def _prompt_cinematic_en(kind: str, angle: str, recent: list) -> str:
+    fmt = config.FORMATS[kind]
+    s_lo, s_hi = fmt["scenes"]
+    w_lo, w_hi = fmt["words"]
+    recent_txt = "; ".join(recent) if recent else "none"
+    schema = (
+        '{"title": "at most 60 characters, one punchy line", '
+        '"description": "1-2 short sentences", '
+        '"tags": ["5 to 8 single-word tags such as motivation, discipline, mindset, gym"], '
+        '"scenes": [{"narration": "ONE short line, 3 to 10 words, with 1-2 power words wrapped in asterisks", '
+        '"keywords": "ENGLISH stock-video search phrase, 2-3 words, dark and cinematic (e.g. silhouette rain)"}]}'
+    )
+    return (
+        f"Channel theme: {config.THEME}\n"
+        f"Angle of this video: {angle}\n"
+        "Format: a YouTube Short in the style of dark, cinematic discipline and gym-motivation edits, "
+        "about 20-30 seconds, one single idea.\n"
+        f"Number of scenes: {s_lo}-{s_hi}. Total narration length: {w_lo}-{w_hi} words.\n\n"
+        "Style:\n"
+        "- Speak directly to the viewer in the second person (you). Blunt, intense, quietly angry, like a deep "
+        "voice in a dark gym. Short punchy lines.\n"
+        "- Structure: line 1 is a hook that stings (a hard truth), then the struggle, then a turning point, "
+        "then a defiant closing line of at most six words.\n"
+        "- Every scene is ONE short line (3 to 10 words). Each line is shown big on screen and read aloud, "
+        "so it must also work as on-screen text.\n"
+        "- Wrap the one or two most powerful words of each line in asterisks, for example: "
+        "Nobody *believes* in you.\n"
+        "- Write original lines. Never copy famous quotes, song lyrics or well-known speeches.\n"
+        "- Plain spoken English. Write numbers as words. No emojis, no hashtags.\n"
+        "- Do not attribute quotes or events to real people. Do not make medical or financial claims or promise "
+        "guaranteed results.\n\n"
+        "Keywords (visuals):\n"
+        "- Always dark and cinematic: a lone person seen from behind, a hooded silhouette, running, walking, "
+        "boxing, push-ups, an empty road, a railway, rain, fog, snow, a night street, dusk, sunset.\n"
+        "- Never bright, cheerful, smiling, office or business scenes. Use a different visual in every scene.\n\n"
+        f"Do not create content similar to these titles: {recent_txt}\n\n"
+        f"Return only JSON that follows this schema:\n{schema}"
+    )
+
+
+def _prompt_cinematic_tr(kind: str, angle: str, recent: list) -> str:
+    fmt = config.FORMATS[kind]
+    s_lo, s_hi = fmt["scenes"]
+    w_lo, w_hi = fmt["words"]
+    recent_txt = "; ".join(recent) if recent else "yok"
+    schema = (
+        '{"title": "en fazla 60 karakter, tek vurucu cümle", '
+        '"description": "1-2 kısa cümle", '
+        '"tags": ["5 ila 8 tek kelimelik etiket: motivasyon, disiplin, başarı gibi"], '
+        '"scenes": [{"narration": "TEK kısa satır, 3 ila 10 kelime, en güçlü 1-2 kelime yıldız içinde", '
+        '"keywords": "stok video araması için İNGİLİZCE, 2-3 kelime, koyu ve sinematik (ör: silhouette rain)"}]}'
+    )
+    return (
+        f"Kanal teması: {config.THEME}\n"
+        f"Bu videonun açısı: {angle}\n"
+        "Format: karanlık, sinematik disiplin ve spor motivasyonu videolarının tarzında bir YouTube Shorts, "
+        "yaklaşık 20-30 saniye, tek bir fikir.\n"
+        f"Sahne sayısı: {s_lo}-{s_hi}. Toplam anlatım uzunluğu: {w_lo}-{w_hi} kelime.\n\n"
+        "Üslup:\n"
+        "- İzleyiciye doğrudan, ikinci tekil kişiyle (sen) seslen. Net, sert, içten öfkeli bir ton; karanlık "
+        "bir salonda konuşan kalın bir ses gibi. Kısa, vurucu cümleler.\n"
+        "- Yapı: ilk satır acıtan bir kanca (sert bir gerçek), sonra mücadele, sonra dönüm noktası, en sonda "
+        "en fazla altı kelimelik meydan okuyan bir kapanış.\n"
+        "- Her sahne TEK kısa satırdır (3 ila 10 kelime). Her satır ekranda büyük yazılacak ve sesli okunacak.\n"
+        "- Her satırdaki en güçlü bir iki kelimeyi yıldız içine al, örnek: Kimse sana *inanmıyor*.\n"
+        "- Özgün cümleler yaz. Ünlü sözleri, şarkı sözlerini veya bilinen konuşmaları kopyalama.\n"
+        "- Sade konuşma Türkçesi. Rakamları yazıyla yaz. Emoji ve hashtag kullanma.\n"
+        "- Gerçek kişilere söz veya olay atfetme. Tıbbi, finansal iddia veya kesin sonuç vaadi verme.\n\n"
+        "Anahtar kelimeler (görüntü):\n"
+        "- Hep koyu ve sinematik: arkadan görünen yalnız bir insan, kapüşonlu siluet, koşmak, yürümek, boks, "
+        "şınav, boş yol, tren yolu, yağmur, sis, kar, gece sokağı, alacakaranlık, gün batımı.\n"
+        "- Asla parlak, neşeli, gülümseyen, ofis veya iş dünyası görüntüleri olmasın. Her sahnede farklı görüntü.\n\n"
+        f"Şu başlıklara benzer içerik üretme: {recent_txt}\n\n"
+        f"Yalnızca şu şemaya uyan JSON döndür:\n{schema}"
+    )
+
+
 def _prompt(kind: str, angle: str, recent: list) -> str:
-    return (_prompt_en if _is_en() else _prompt_tr)(kind, angle, recent)
+    cinematic = config.FORMATS[kind].get("style") == "cinematic"
+    if _is_en():
+        return (_prompt_cinematic_en if cinematic else _prompt_en)(kind, angle, recent)
+    return (_prompt_cinematic_tr if cinematic else _prompt_tr)(kind, angle, recent)
 
 
 def _validate(data: dict, kind: str) -> dict:
@@ -176,7 +256,7 @@ def _validate(data: dict, kind: str) -> dict:
             scenes.append({"narration": narration, "keywords": keywords or "nature landscape"})
     if not scenes:
         raise ValueError("sahne yok")
-    words = sum(len(s["narration"].split()) for s in scenes)
+    words = sum(len(s["narration"].replace("*", " ").split()) for s in scenes)
     lo, hi = fmt["words"]
     if words < lo * 0.75 or words > hi * 1.3:
         raise ValueError(f"kelime sayısı uygunsuz: {words} (beklenen {lo}-{hi})")
